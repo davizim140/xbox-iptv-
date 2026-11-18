@@ -12,7 +12,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - name: Checkout Xbox IPTV
         uses: actions/checkout@v4
@@ -34,10 +34,10 @@ jobs:
           JOBS: 2
         run: "$RUNNER_TEMP/xsdk/tools/toolchain/build.sh"
 
-      - name: Build XSDK runtime and host tools
+      - name: Build XSDK runtime and host shader compiler
         env:
           TOOLCHAIN: ${{ github.workspace }}/.xsdk-gcc/bin/powerpc-xsdk-elf-
-        run: make -C "$RUNNER_TEMP/xsdk" -j2
+        run: make -C "$RUNNER_TEMP/xsdk" -j2 cmake_check
 
       - name: Run native M3U parser tests
         run: |
@@ -53,6 +53,9 @@ jobs:
 
       - name: Build Xbox IPTV XEX
         run: cmake --build build --parallel 2
+
+      - name: Verify XEX exists and is non-empty
+        run: test -s build/xbox-iptv.xex
 
       - name: Upload XEX artifact
         uses: actions/upload-artifact@v4
