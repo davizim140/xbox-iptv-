@@ -43,9 +43,10 @@ jobs:
         run: bash "$RUNNER_TEMP/xsdk/tools/toolchain/build.sh"
 
       - name: Build XSDK runtime and host shader compiler
-        env:
-          TOOLCHAIN: ${{ github.workspace }}/.xsdk-gcc/bin/powerpc-xsdk-elf-
-        run: make -C "$RUNNER_TEMP/xsdk" -j2 cmake_check
+        run: >-
+          make -C "$RUNNER_TEMP/xsdk" -j2
+          TOOLCHAIN="${{ github.workspace }}/.xsdk-gcc/bin/powerpc-xsdk-elf-"
+          build/libxsdk.a build/host/libxsc.so
 
       - name: Run native M3U parser tests
         run: |
