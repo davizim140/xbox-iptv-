@@ -32,7 +32,7 @@ jobs:
           PREFIX: ${{ github.workspace }}/.xsdk-gcc
           WORK: ${{ runner.temp }}/xsdk-gcc-work
           JOBS: 2
-        run: "$RUNNER_TEMP/xsdk/tools/toolchain/build.sh"
+        run: bash "$RUNNER_TEMP/xsdk/tools/toolchain/build.sh"
 
       - name: Build XSDK runtime and host shader compiler
         env:
