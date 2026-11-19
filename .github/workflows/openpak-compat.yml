@@ -1,0 +1,65 @@
+name: Validate OpenPak x360-sdk
+
+on:
+  push:
+    branches: [test/openpak-sdk]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  openpak-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: Checkout Xbox IPTV test branch
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential bison flex texinfo libgmp-dev libmpfr-dev libmpc-dev curl xz-utils patch python3 cmake ninja-build git
+
+      - name: Fetch pinned OpenPak x360-sdk
+        run: |
+          git clone https://github.com/openpak/x360-sdk.git "$RUNNER_TEMP/openpak-x360-sdk"
+          git -C "$RUNNER_TEMP/openpak-x360-sdk" checkout --detach bcbb0e7eeff4bae59f9882209e3edf5affc96767
+
+      - name: Build OpenPak PowerPC toolchain
+        env:
+          PREFIX: ${{ github.workspace }}/.openpak-gcc
+          WORK: ${{ runner.temp }}/openpak-gcc-work
+          JOBS: 2
+        run: bash "$RUNNER_TEMP/openpak-x360-sdk/tools/toolchain/build.sh"
+
+      - name: Build OpenPak SDK and CMake validation title
+        env:
+          TOOLCHAIN: ${{ github.workspace }}/.openpak-gcc/bin/powerpc-xsdk-elf-
+        run: make -C "$RUNNER_TEMP/openpak-x360-sdk" -j2 cmake_check
+
+      - name: Run native M3U parser tests
+        run: |
+          cc -std=c17 -Wall -Wextra -Werror -Isrc src/m3u.c tests/test_m3u.c -o /tmp/test_m3u
+          /tmp/test_m3u
+
+      - name: Configure Xbox IPTV against OpenPak SDK
+        run: >-
+          cmake -S . -B build-openpak -G Ninja
+          -DCMAKE_TOOLCHAIN_FILE="$RUNNER_TEMP/openpak-x360-sdk/cmake/xsdk.cmake"
+          -DXSDK_TOOLCHAIN="${{ github.workspace }}/.openpak-gcc"
+          -DCMAKE_BUILD_TYPE=RelWithDebInfo
+
+      - name: Build Xbox IPTV XEX with OpenPak
+        run: cmake --build build-openpak --parallel 2
+
+      - name: Verify OpenPak XEX
+        run: test -s build-openpak/xbox-iptv.xex
+
+      - name: Upload OpenPak test XEX
+        uses: actions/upload-artifact@v4
+        with:
+          name: xbox-iptv-openpak-test-xex
+          path: build-openpak/xbox-iptv.xex
+          if-no-files-found: error
+          retention-days: 14
