@@ -26,6 +26,14 @@ jobs:
           git clone https://github.com/openpak/x360-sdk.git "$RUNNER_TEMP/openpak-x360-sdk"
           git -C "$RUNNER_TEMP/openpak-x360-sdk" checkout --detach bcbb0e7eeff4bae59f9882209e3edf5affc96767
 
+      - name: Restore OpenPak toolchain cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/.openpak-gcc
+            ${{ runner.temp }}/openpak-gcc-work
+          key: openpak-toolchain-${{ runner.os }}-bcbb0e7eeff4bae59f9882209e3edf5affc96767
+
       - name: Build OpenPak PowerPC toolchain
         env:
           PREFIX: ${{ github.workspace }}/.openpak-gcc
