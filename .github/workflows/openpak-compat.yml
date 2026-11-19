@@ -41,10 +41,11 @@ jobs:
           JOBS: 2
         run: bash "$RUNNER_TEMP/openpak-x360-sdk/tools/toolchain/build.sh"
 
-      - name: Build OpenPak SDK and CMake validation title
-        env:
-          TOOLCHAIN: ${{ github.workspace }}/.openpak-gcc/bin/powerpc-xsdk-elf-
-        run: make -C "$RUNNER_TEMP/openpak-x360-sdk" -j2 cmake_check
+      - name: Build OpenPak SDK runtime and host shader compiler
+        run: >-
+          make -C "$RUNNER_TEMP/openpak-x360-sdk" -j2
+          TOOLCHAIN="${{ github.workspace }}/.openpak-gcc/bin/powerpc-xsdk-elf-"
+          build/libxsdk.a build/host/libxsc.so
 
       - name: Run native M3U parser tests
         run: |
