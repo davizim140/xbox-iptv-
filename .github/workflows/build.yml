@@ -27,6 +27,14 @@ jobs:
           git clone https://github.com/xenosworks/xsdk.git "$RUNNER_TEMP/xsdk"
           git -C "$RUNNER_TEMP/xsdk" checkout --detach 9e6de98f6b5d737bce0fecd2864edae94bdd2637
 
+      - name: Restore XSDK toolchain cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/.xsdk-gcc
+            ${{ runner.temp }}/xsdk-gcc-work
+          key: xsdk-toolchain-${{ runner.os }}-9e6de98f6b5d737bce0fecd2864edae94bdd2637
+
       - name: Build XSDK PowerPC toolchain
         env:
           PREFIX: ${{ github.workspace }}/.xsdk-gcc
