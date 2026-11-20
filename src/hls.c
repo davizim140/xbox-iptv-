@@ -22,12 +22,6 @@ static bool resolve_uri(const char *base, const char *uri, char *out, size_t cap
     *slash = '\0';
     return snprintf(out, cap, "%s%s/%s", origin, parsed.path, uri) < (int)cap;
 }
-static bool append_text(char *out, size_t cap, const char *a, const char *b)
-{
- size_t n=strlen(out), m=(size_t)(b-a);
- if(n+m>=cap) return false;
- memcpy(out+n,a,m); out[n+m]=0; return true;
-}
 static void trim(char *s)
 {
     size_t n = strlen(s);
