@@ -72,7 +72,7 @@ static void toggle_favourite(const IptvChannel *channel)
 }
 
 enum { BROWSER_MAX_ENTRIES = 96, BROWSER_NAME_BYTES = 256, BROWSER_PATH_BYTES = 512 };
-typedef struct { char name[BROWSER_NAME_BYTES]; bool directory; } BrowserEntry;
+typedef struct { char name[BROWSER_NAME_BYTES]; char path[BROWSER_PATH_BYTES]; bool directory; } BrowserEntry;
 static BrowserEntry browser_entries[BROWSER_MAX_ENTRIES];
 static uint32_t browser_count;
 static uint32_t browser_selected;
@@ -83,13 +83,11 @@ static char selected_playlist_path[BROWSER_PATH_BYTES] = "";
 
 typedef struct { const char *label; const char *path; } StorageRoot;
 static const StorageRoot storage_roots[] = {
-    { "HDD INTERNO", "hdd:\\" },
-    { "USB (PORTA PADRAO)", "usb:\\" },
+    { "USB (PADRAO)", "usb:\\" },
     { "USB 0", "usb0:\\" },
     { "USB 1", "usb1:\\" },
     { "USB 2", "usb2:\\" },
-    { "MEMORY UNIT", "mu:\\" },
-    { "DVD", "dvd:\\" }
+    { "MEMORY UNIT", "mu:\\" }
 };
 static char network_link_status[48] = "NAO VERIFICADO";
 static char network_ip_status[48] = "NAO VERIFICADO";
@@ -147,7 +145,9 @@ static void scan_browser_drives(void)
         if (browser_count >= BROWSER_MAX_ENTRIES)
             break;
         (void)snprintf(browser_entries[browser_count].name,
-            sizeof(browser_entries[browser_count].name), "%s", storage_roots[i].path);
+            sizeof(browser_entries[browser_count].name), "%s", storage_roots[i].label);
+        (void)snprintf(browser_entries[browser_count].path,
+            sizeof(browser_entries[browser_count].path), "%s", storage_roots[i].path);
         browser_entries[browser_count].directory = true;
         browser_count++;
     }
@@ -189,6 +189,7 @@ static void scan_browser_directory(void)
 
         (void)snprintf(browser_entries[browser_count].name,
             sizeof(browser_entries[browser_count].name), "%s", entry->d_name);
+        browser_entries[browser_count].path[0] = '\0';
         browser_entries[browser_count].directory = is_directory;
         browser_count++;
     }
@@ -249,7 +250,7 @@ static void select_browser_entry(void)
 
     const BrowserEntry *entry = &browser_entries[browser_selected];
     if (browser_selecting_drive) {
-        (void)snprintf(browser_path, sizeof(browser_path), "%s", entry->name);
+        (void)snprintf(browser_path, sizeof(browser_path), "%s", entry->path);
         browser_selecting_drive = false;
         scan_browser_directory();
         return;
