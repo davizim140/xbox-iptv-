@@ -82,12 +82,22 @@ int iptv_download_playlist(const char *url, const char *destination,
     curl_easy_cleanup(curl);
     curl_global_cleanup();
 
+    int valid_m3u = 0;
+    if (result == CURLE_OK && status >= 200 && status < 300 &&
+        !sink.overflow && sink.bytes > 0 && fflush(file) == 0) {
+        char signature[16] = { 0 };
+        rewind(file);
+        valid_m3u = fgets(signature, sizeof(signature), file) != NULL &&
+                    strncmp(signature, "#EXTM3U", 7) == 0;
+    }
     const int close_error = fclose(file);
     if (result != CURLE_OK || status < 200 || status >= 300 ||
-        sink.overflow || close_error != 0 || sink.bytes == 0) {
+        sink.overflow || close_error != 0 || !valid_m3u) {
         remove(temporary);
         if (sink.overflow)
             return -5;
+        if (!valid_m3u)
+            return -8;
         return -6;
     }
     if (rename(temporary, destination) != 0) {
