@@ -54,6 +54,7 @@ jobs:
           git -C "$RUNNER_TEMP/curl-xenon" checkout --detach a6b70bd06820e1c625f47fe0e592e08c5daaa6b4
           git clone https://github.com/xenosworks/mbedtls-xenon.git "$RUNNER_TEMP/mbedtls-xenon"
           git -C "$RUNNER_TEMP/mbedtls-xenon" checkout --detach 591b04adbec4bc5582649601f4407506a610162b
+          git -C "$RUNNER_TEMP/mbedtls-xenon" submodule update --init --recursive
 
       - name: Configure curl HTTP HTTPS compatibility test
         run: >-
