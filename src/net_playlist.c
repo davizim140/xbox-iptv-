@@ -48,9 +48,14 @@ int iptv_download_playlist(const char *url, const char *destination,
     DownloadSink sink = { file, 0, maximum_bytes, 0 };
     CURL *curl = NULL;
     CURLcode result = curl_global_init(CURL_GLOBAL_DEFAULT);
-    if (result == CURLE_OK)
-        curl = curl_easy_init();
+    if (result != CURLE_OK) {
+        fclose(file);
+        remove(temporary);
+        return -4;
+    }
+    curl = curl_easy_init();
     if (!curl) {
+        curl_global_cleanup();
         fclose(file);
         remove(temporary);
         return -4;
@@ -69,12 +74,13 @@ int iptv_download_playlist(const char *url, const char *destination,
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
     curl_easy_setopt(curl, CURLOPT_CAINFO, "game:\\cacert.pem");
-    curl_easy_setopt(curl, CURLOPT_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
-    curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_HTTP | CURLPROTO_HTTPS);
+    curl_easy_setopt(curl, CURLOPT_PROTOCOLS_STR, "http,https");
+    curl_easy_setopt(curl, CURLOPT_REDIR_PROTOCOLS_STR, "http,https");
     result = curl_easy_perform(curl);
     long status = 0;
     (void)curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
     curl_easy_cleanup(curl);
+    curl_global_cleanup();
 
     const int close_error = fclose(file);
     if (result != CURLE_OK || status < 200 || status >= 300 ||
@@ -83,10 +89,6 @@ int iptv_download_playlist(const char *url, const char *destination,
         if (sink.overflow)
             return -5;
         return -6;
-    }
-    if (remove(destination) != 0) {
-        /* A missing destination is normal; rename below decides whether the
-           filesystem can publish the downloaded file. */
     }
     if (rename(temporary, destination) != 0) {
         remove(temporary);
