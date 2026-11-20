@@ -145,7 +145,7 @@ static void save_favourites(void)
         hex_encode(channel->group, group, sizeof(group));
         hex_encode(channel->logo, logo, sizeof(logo));
         hex_encode(channel->id, id, sizeof(id));
-        if (fprintf(file, "%s|%s|%s|%s|%s\\n", url, name, group, logo, id) < 0) {
+        if (fprintf(file, "%s|%s|%s|%s|%s\n", url, name, group, logo, id) < 0) {
             ok = false;
             break;
         }
