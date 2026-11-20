@@ -28,7 +28,7 @@ static void read_attribute(const char *line, const char *attribute, char *destin
     if (value == NULL)
         return;
     value += strlen(attribute);
-    const char *end = strchr(value, '\"');
+    const char *end = strchr(value, '"');
     if (end != NULL)
         copy_range(destination, capacity, value, end);
 }
@@ -41,7 +41,7 @@ bool iptv_parse_extinf(const char *line, IptvChannel *channel)
     bool quoted = false;
     const char *separator = NULL;
     for (const char *cursor = line + 8; *cursor != '\0'; cursor++) {
-        if (*cursor == '\"')
+        if (*cursor == '"')
             quoted = !quoted;
         else if (*cursor == ',' && !quoted) {
             separator = cursor;
@@ -60,4 +60,42 @@ bool iptv_parse_extinf(const char *line, IptvChannel *channel)
     read_attribute(line, "tvg-logo=\"", channel->logo, sizeof(channel->logo));
     read_attribute(line, "group-title=\"", channel->group, sizeof(channel->group));
     return true;
+}
+
+static bool line_is_empty(const char *line)
+{
+    for (; *line; line++) {
+        if (*line != ' ' && *line != '\t' && *line != '\r' && *line != '\n')
+            return false;
+    }
+    return true;
+}
+
+int iptv_playlist_read(FILE *stream, IptvChannel *channels, size_t capacity)
+{
+    if (stream == NULL || (capacity > 0 && channels == NULL))
+        return -1;
+
+    char line[1024];
+    IptvChannel pending;
+    bool has_pending = false;
+    size_t count = 0;
+
+    while (fgets(line, sizeof(line), stream) != NULL) {
+        if (strncmp(line, "#EXTINF:", 8) == 0) {
+            has_pending = iptv_parse_extinf(line, &pending);
+            continue;
+        }
+        if (!has_pending || line[0] == '#' || line_is_empty(line))
+            continue;
+
+        if (count < capacity) {
+            copy_range(pending.url, sizeof(pending.url), line, line + strlen(line));
+            if (pending.url[0] != '\0')
+                channels[count++] = pending;
+        }
+        has_pending = false;
+    }
+
+    return ferror(stream) ? -1 : (int)count;
 }
