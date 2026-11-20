@@ -35,6 +35,39 @@ typedef enum {
 static IptvChannel playlist_channels[IPTV_MAX_CHANNELS];
 static int playlist_count = -1;
 static uint32_t playlist_selected;
+static IptvChannel favourite_channels[IPTV_MAX_CHANNELS];
+static uint32_t favourite_count;
+static uint32_t favourite_selected;
+
+static int find_favourite(const IptvChannel *channel)
+{
+    for (uint32_t i = 0; i < favourite_count; i++) {
+        if (strcmp(favourite_channels[i].url, channel->url) == 0)
+            return (int)i;
+    }
+    return -1;
+}
+
+static void toggle_favourite(const IptvChannel *channel)
+{
+    const int existing = find_favourite(channel);
+    if (existing >= 0) {
+        for (uint32_t i = (uint32_t)existing; i + 1 < favourite_count; i++)
+            favourite_channels[i] = favourite_channels[i + 1];
+        favourite_count--;
+        if (favourite_selected >= favourite_count && favourite_count > 0)
+            favourite_selected = favourite_count - 1;
+        xsdk_log_write("xbox-iptv: favorito removido: %s", channel->name);
+        return;
+    }
+
+    if (favourite_count >= IPTV_MAX_CHANNELS) {
+        xsdk_log_write("xbox-iptv: limite de favoritos atingido");
+        return;
+    }
+    favourite_channels[favourite_count++] = *channel;
+    xsdk_log_write("xbox-iptv: favorito adicionado: %s", channel->name);
+}
 
 enum { BROWSER_MAX_ENTRIES = 96, BROWSER_NAME_BYTES = 256, BROWSER_PATH_BYTES = 512 };
 typedef struct { char name[BROWSER_NAME_BYTES]; bool directory; } BrowserEntry;
@@ -277,8 +310,23 @@ static void draw_section(Screen screen, uint32_t width)
             }
         }
     } else if (screen == SCREEN_FAVOURITES) {
-        xsdk_text_draw(66, 220, 2, 0xFFFFFFFF, "NENHUM FAVORITO");
-        xsdk_text_draw(66, 270, 1, 0xFF8B95AA, "Seus canais favoritos aparecerao nesta tela.");
+        if (favourite_count == 0) {
+            xsdk_text_draw(66, 220, 2, 0xFFFFFFFF, "NENHUM FAVORITO");
+            xsdk_text_draw(66, 270, 1, 0xFF8B95AA, "Na lista de canais, pressione Y para favoritar.");
+        } else {
+            char count_text[64];
+            (void)snprintf(count_text, sizeof(count_text), "%u CANAIS FAVORITOS", (unsigned)favourite_count);
+            xsdk_text_draw(66, 178, 1, 0xFF48C7FA, count_text);
+            const uint32_t first = favourite_selected >= 7 ? favourite_selected - 6 : 0;
+            for (uint32_t i = first; i < favourite_count && i < first + 7; i++) {
+                char row[IPTV_CHANNEL_NAME_BYTES + 8];
+                (void)snprintf(row, sizeof(row), "%c %s",
+                    i == favourite_selected ? '>' : ' ', favourite_channels[i].name);
+                xsdk_text_draw(78, (int32_t)(230 + (i - first) * 46),
+                    1, i == favourite_selected ? 0xFFFFFFFF : 0xFFB5BDCC, row);
+            }
+            xsdk_text_draw(66, 584, 1, 0xFF8B95AA, "Y: REMOVER O FAVORITO SELECIONADO");
+        }
     } else {
         xsdk_text_draw(66, 220, 2, 0xFFFFFFFF, "STATUS DA REDE");
         xsdk_text_draw(66, 274, 1, 0xFFB5BDCC, "CONEXAO ETHERNET:");
@@ -290,7 +338,8 @@ static void draw_section(Screen screen, uint32_t width)
 
     const char *footer =
         screen == SCREEN_PLAYLISTS ? "D-PAD: NAVEGAR    A: ABRIR/SELECIONAR    B: VOLTAR" :
-        screen == SCREEN_CHANNELS ? "D-PAD: NAVEGAR    X: RECARREGAR LISTA    B: PASTAS" :
+        screen == SCREEN_CHANNELS ? "D-PAD: NAVEGAR    Y: FAVORITAR    X: RECARREGAR    B: PASTAS" :
+        screen == SCREEN_FAVOURITES ? "D-PAD: NAVEGAR    Y: REMOVER    B: VOLTAR" :
         screen == SCREEN_SETTINGS ? "X: ATUALIZAR REDE    B: VOLTAR" : "B: VOLTAR";
     xsdk_text_draw(66, 632, 1, 0xFF68748B, footer);
     (void)width;
@@ -361,6 +410,16 @@ static void run(uint32_t width, uint32_t height)
                 }
                 if ((pressed & INPUT_GAMEPAD_X) != 0)
                     scan_browser_directory();
+            } else if (screen == SCREEN_FAVOURITES) {
+                if ((pressed & INPUT_GAMEPAD_DPAD_UP) != 0 && favourite_selected > 0)
+                    favourite_selected--;
+                if ((pressed & INPUT_GAMEPAD_DPAD_DOWN) != 0 &&
+                    favourite_selected + 1 < favourite_count)
+                    favourite_selected++;
+                if ((pressed & INPUT_GAMEPAD_Y) != 0 && favourite_count > 0) {
+                    const IptvChannel selected_favourite = favourite_channels[favourite_selected];
+                    toggle_favourite(&selected_favourite);
+                }
             } else if (screen == SCREEN_CHANNELS) {
                 if ((pressed & INPUT_GAMEPAD_DPAD_UP) != 0 && playlist_selected > 0)
                     playlist_selected--;
@@ -369,6 +428,8 @@ static void run(uint32_t width, uint32_t height)
                     playlist_selected++;
                 if ((pressed & INPUT_GAMEPAD_X) != 0)
                     load_playlist_file(selected_playlist_path);
+                if ((pressed & INPUT_GAMEPAD_Y) != 0 && playlist_count > 0)
+                    toggle_favourite(&playlist_channels[playlist_selected]);
             }
         }
 
