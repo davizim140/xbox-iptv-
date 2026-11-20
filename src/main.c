@@ -470,8 +470,12 @@ static void run(uint32_t width, uint32_t height)
                         select_browser_entry();
                     }
                 }
-                if ((pressed & INPUT_GAMEPAD_X) != 0)
-                    scan_browser_directory();
+                if ((pressed & INPUT_GAMEPAD_X) != 0) {
+                    if (browser_selecting_drive)
+                        scan_browser_drives();
+                    else
+                        scan_browser_directory();
+                }
             } else if (screen == SCREEN_FAVOURITES) {
                 if ((pressed & INPUT_GAMEPAD_DPAD_UP) != 0 && favourite_selected > 0)
                     favourite_selected--;
