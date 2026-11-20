@@ -55,7 +55,9 @@ static void toggle_favourite(const IptvChannel *channel)
         for (uint32_t i = (uint32_t)existing; i + 1 < favourite_count; i++)
             favourite_channels[i] = favourite_channels[i + 1];
         favourite_count--;
-        if (favourite_selected >= favourite_count && favourite_count > 0)
+        if (favourite_count == 0)
+            favourite_selected = 0;
+        else if (favourite_selected >= favourite_count)
             favourite_selected = favourite_count - 1;
         xsdk_log_write("xbox-iptv: favorito removido: %s", channel->name);
         return;
