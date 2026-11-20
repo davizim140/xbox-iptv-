@@ -1,4 +1,5 @@
 #include "epg.h"
+#include <stdbool.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
