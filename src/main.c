@@ -47,21 +47,7 @@ static char selected_playlist_path[BROWSER_PATH_BYTES] = "";
 static char network_link_status[48] = "NAO VERIFICADO";
 static char network_ip_status[48] = "NAO VERIFICADO";
 
-static const char *const menu_items[MENU_ITEMS] = {
-    "TV AO VIVO",
-    "MINHAS LISTAS M3U",
-    "FAVORITOS",
-    "CONFIGURACOES"
-};
 
-static const char *const menu_descriptions[MENU_ITEMS] = {
-    "Area de canais ao vivo em desenvolvimento.",
-    "Navegue e abra arquivos M3U ou M3U8 no USB.",
-    "Seus canais favoritos ficarao aqui.",
-    "Configure rede, listas e preferencias."
-};
-
- 
 static void refresh_network_status(void)
 {
     uint32_t link = 0;
