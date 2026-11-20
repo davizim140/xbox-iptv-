@@ -11,10 +11,10 @@ static bool resolve_uri(const char *base, const char *uri, char *out, size_t cap
     IptvHttpUrl parsed;
     if (!iptv_http_parse_url(base, &parsed)) return false;
     char origin[320];
-    int n = snprintf(origin, sizeof(origin), "%s://%s%s%u",
-        parsed.tls ? "https" : "http", parsed.host,
-        (parsed.tls && parsed.port == 443) || (!parsed.tls && parsed.port == 80) ? "" : ":",
-        (parsed.tls && parsed.port == 443) || (!parsed.tls && parsed.port == 80) ? 0u : (unsigned)parsed.port);
+    bool default_port = (parsed.tls && parsed.port == 443) || (!parsed.tls && parsed.port == 80);
+    int n = default_port
+        ? snprintf(origin, sizeof(origin), "%s://%s", parsed.tls ? "https" : "http", parsed.host)
+        : snprintf(origin, sizeof(origin), "%s://%s:%u", parsed.tls ? "https" : "http", parsed.host, (unsigned)parsed.port);
     if (n < 0 || (size_t)n >= sizeof(origin)) return false;
     if (uri[0] == '/') return snprintf(out, cap, "%s%s", origin, uri) < (int)cap;
     char *slash = strrchr(parsed.path, '/');
@@ -38,8 +38,7 @@ bool iptv_hls_parse(const char *text, const char *manifest_url, IptvHlsPlaylist 
     unsigned pending_bandwidth = 0, pending_width = 0, pending_height = 0;
     double pending_duration = 0.0;
     char pending_title[128] = "";
-    char *save = NULL;
-    for (char *line = strtok_r(copy, "\n", &save); line; line = strtok_r(NULL, "\n", &save)) {
+    for (char *line = strtok(copy, "\n"); line; line = strtok(NULL, "\n")) {
         trim(line);
         if (!*line) continue;
         if (strncmp(line, "#EXT-X-STREAM-INF:", 18) == 0) {
