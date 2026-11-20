@@ -54,6 +54,8 @@ jobs:
           /tmp/test_m3u
           cc -std=c17 -Wall -Wextra -Werror -Isrc src/http.c tests/test_http.c -o /tmp/test_http
           /tmp/test_http
+          cc -std=c17 -Wall -Wextra -Werror -Isrc src/http.c src/hls.c tests/test_hls.c -o /tmp/test_hls
+          /tmp/test_hls
 
       - name: Configure Xbox IPTV
         run: >-
