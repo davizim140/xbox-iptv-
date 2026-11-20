@@ -13,6 +13,7 @@
 #include "xsdk/splash.h"
 #include "xsdk/text.h"
 #include "m3u.h"
+#include "net_playlist.h"
 
 enum {
     DISPLAY_BUFFERS = 2,
@@ -213,6 +214,8 @@ static const StorageRoot storage_roots[] = {
 };
 static char network_link_status[48] = "NAO VERIFICADO";
 static char network_ip_status[48] = "NAO VERIFICADO";
+static char live_catalogue_status[112] = "PRESSIONE X PARA BAIXAR A LISTA DO BRASIL";
+static bool channels_from_live_catalogue;
 
 
 static void refresh_network_status(void)
@@ -393,6 +396,63 @@ static void select_browser_entry(void)
     xsdk_log_write("xbox-iptv: lista selecionada: %s", path);
 }
 
+static bool download_live_catalogue(void)
+{
+    (void)refresh_network_status();
+    char root[BROWSER_PATH_BYTES] = "";
+    for (size_t i = 0; i < sizeof(storage_roots) / sizeof(storage_roots[0]); i++) {
+        DIR *directory = opendir(storage_roots[i].path);
+        if (directory == NULL)
+            continue;
+        (void)closedir(directory);
+        (void)snprintf(root, sizeof(root), "%s", storage_roots[i].path);
+        break;
+    }
+    if (root[0] == '\\0') {
+        (void)snprintf(live_catalogue_status, sizeof(live_catalogue_status),
+            "CONECTE UM USB PARA SALVAR A LISTA");
+        return false;
+    }
+
+    char destination[BROWSER_PATH_BYTES];
+    const int written = snprintf(destination, sizeof(destination),
+        "%sxbox-iptv-online.m3u", root);
+    if (written < 0 || (size_t)written >= sizeof(destination)) {
+        (void)snprintf(live_catalogue_status, sizeof(live_catalogue_status),
+            "CAMINHO USB INVALIDO");
+        return false;
+    }
+
+    (void)snprintf(live_catalogue_status, sizeof(live_catalogue_status),
+        "BAIXANDO CATALOGO PUBLICO DO BRASIL...");
+    size_t downloaded = 0;
+    const int result = iptv_download_playlist(
+        "https://iptv-org.github.io/iptv/countries/br.m3u",
+        destination, 2u * 1024u * 1024u, &downloaded);
+    if (result != 0) {
+        (void)snprintf(live_catalogue_status, sizeof(live_catalogue_status),
+            "FALHA NO DOWNLOAD (CODIGO %d)", result);
+        xsdk_log_write("xbox-iptv: download M3U falhou: %d", result);
+        return false;
+    }
+
+    (void)snprintf(favourites_storage_root, sizeof(favourites_storage_root), "%s", root);
+    load_favourites();
+    load_playlist_file(destination);
+    if (playlist_count <= 0) {
+        (void)snprintf(live_catalogue_status, sizeof(live_catalogue_status),
+            "DOWNLOAD OK, MAS NENHUM CANAL M3U VALIDO");
+        return false;
+    }
+    channels_from_live_catalogue = true;
+    (void)snprintf(live_catalogue_status, sizeof(live_catalogue_status),
+        "CATALOGO ATUALIZADO: %d CANAIS / %u KB",
+        playlist_count, (unsigned)(downloaded / 1024u));
+    xsdk_log_write("xbox-iptv: catalogo online carregado: %d canais, %u bytes",
+        playlist_count, (unsigned)downloaded);
+    return true;
+}
+
 static void draw_home_card(int32_t x, int32_t y, const char *title, const char *subtitle, bool active)
 {
     const uint32_t color = active ? 0xFFE50914 : 0xFF465064;
@@ -438,7 +498,9 @@ static void draw_section(Screen screen, uint32_t width)
     if (screen == SCREEN_LIVE) {
         xsdk_text_draw(66, 220, 2, 0xFFFFFFFF, "CATALOGO PUBLICO");
         xsdk_text_draw(66, 270, 1, 0xFFB5BDCC, "Fonte inicial: iptv-org (lista publica M3U)");
-        xsdk_text_draw(66, 306, 1, 0xFF8B95AA, "A conexao e a reproducao serao ativadas nas proximas etapas.");
+        xsdk_text_draw(66, 306, 1, 0xFF8B95AA, "CATALOGO PUBLICO BRASIL (IPTV-ORG) / HTTPS COM VALIDACAO TLS");
+        xsdk_text_draw(66, 350, 1, 0xFF48C7FA, live_catalogue_status);
+        xsdk_text_draw(66, 394, 1, 0xFF8B95AA, "X: BAIXAR/ATUALIZAR LISTA    USB: ARQUIVO OFFLINE");
     } else if (screen == SCREEN_PLAYLISTS) {
         if (browser_selecting_drive) {
             xsdk_text_draw(66, 178, 1, 0xFFB5BDCC, "ESCOLHA O DISPOSITIVO:");
@@ -523,7 +585,8 @@ static void draw_section(Screen screen, uint32_t width)
         screen == SCREEN_PLAYLISTS ? (browser_selecting_drive ? "D-PAD: ESCOLHER UNIDADE    A: ABRIR    X: ATUALIZAR    B: VOLTAR" : "D-PAD: NAVEGAR    A: ABRIR/SELECIONAR    B: UNIDADES") :
         screen == SCREEN_CHANNELS ? "D-PAD: NAVEGAR    Y: FAVORITAR    X: RECARREGAR    B: PASTAS" :
         screen == SCREEN_FAVOURITES ? "D-PAD: NAVEGAR    Y: REMOVER    B: VOLTAR" :
-        screen == SCREEN_SETTINGS ? "X: ATUALIZAR REDE    B: VOLTAR" : "B: VOLTAR";
+        screen == SCREEN_SETTINGS ? "X: ATUALIZAR REDE    B: VOLTAR" :
+        screen == SCREEN_LIVE ? "X: BAIXAR CATALOGO    B: VOLTAR" : "B: VOLTAR";
     xsdk_text_draw(66, 632, 1, 0xFF68748B, footer);
     (void)width;
 }
@@ -568,7 +631,8 @@ static void run(uint32_t width, uint32_t height)
                 }
             } else if ((pressed & INPUT_GAMEPAD_B) != 0) {
                 if (screen == SCREEN_CHANNELS) {
-                    screen = SCREEN_PLAYLISTS;
+                    screen = channels_from_live_catalogue ? SCREEN_LIVE : SCREEN_PLAYLISTS;
+                    channels_from_live_catalogue = false;
                 } else if (screen == SCREEN_PLAYLISTS && !browser_selecting_drive && !is_drive_root(browser_path)) {
                     (void)enter_browser_directory("..");
                 } else if (screen == SCREEN_PLAYLISTS && !browser_selecting_drive) {
@@ -580,6 +644,9 @@ static void run(uint32_t width, uint32_t height)
             } else if (screen == SCREEN_SETTINGS) {
                 if ((pressed & INPUT_GAMEPAD_X) != 0)
                     refresh_network_status();
+            } else if (screen == SCREEN_LIVE) {
+                if ((pressed & INPUT_GAMEPAD_X) != 0 && download_live_catalogue())
+                    screen = SCREEN_CHANNELS;
             } else if (screen == SCREEN_PLAYLISTS) {
                 if ((pressed & INPUT_GAMEPAD_DPAD_UP) != 0 && browser_selected > 0)
                     browser_selected--;
@@ -589,6 +656,7 @@ static void run(uint32_t width, uint32_t height)
                 if ((pressed & INPUT_GAMEPAD_A) != 0) {
                     if (browser_selected < browser_count && !browser_entries[browser_selected].directory) {
                         select_browser_entry();
+                        channels_from_live_catalogue = false;
                         screen = SCREEN_CHANNELS;
                     } else {
                         select_browser_entry();
