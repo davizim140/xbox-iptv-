@@ -92,12 +92,12 @@ static void hex_encode(const char *source, char *destination, size_t capacity)
     size_t out = 0;
     if (capacity == 0)
         return;
-    for (size_t i = 0; source[i] != '\\0' && out + 2 < capacity; i++) {
+    for (size_t i = 0; source[i] != '\0' && out + 2 < capacity; i++) {
         const unsigned char value = (unsigned char)source[i];
         destination[out++] = digits[value >> 4];
         destination[out++] = digits[value & 15];
     }
-    destination[out] = '\\0';
+    destination[out] = '\0';
 }
 
 static bool hex_decode(const char *source, char *destination, size_t capacity)
@@ -105,22 +105,22 @@ static bool hex_decode(const char *source, char *destination, size_t capacity)
     size_t out = 0;
     if (capacity == 0)
         return false;
-    while (source[0] != '\\0' && source[1] != '\\0') {
+    while (source[0] != '\0' && source[1] != '\0') {
         unsigned int value = 0;
         if (sscanf(source, "%2x", &value) != 1 || out + 1 >= capacity)
             return false;
         destination[out++] = (char)value;
         source += 2;
     }
-    if (*source != '\\0')
+    if (*source != '\0')
         return false;
-    destination[out] = '\\0';
+    destination[out] = '\0';
     return true;
 }
 
 static void save_favourites(void)
 {
-    if (favourites_storage_root[0] == '\\0')
+    if (favourites_storage_root[0] == '\0')
         return;
     char path[BROWSER_PATH_BYTES];
     const int length = snprintf(path, sizeof(path), "%sxbox-iptv-fav.dat", favourites_storage_root);
@@ -158,7 +158,7 @@ static void save_favourites(void)
 
 static void load_favourites(void)
 {
-    if (favourites_storage_root[0] == '\\0')
+    if (favourites_storage_root[0] == '\0')
         return;
     char path[BROWSER_PATH_BYTES];
     const int length = snprintf(path, sizeof(path), "%sxbox-iptv-fav.dat", favourites_storage_root);
@@ -180,14 +180,14 @@ static void load_favourites(void)
                 fields[0] = NULL;
                 break;
             }
-            *separator = '\\0';
+            *separator = '\0';
             fields[i] = separator + 1;
         }
         if (fields[0] == NULL)
             continue;
-        char *newline = strpbrk(fields[4], "\\r\\n");
+        char *newline = strpbrk(fields[4], "\r\n");
         if (newline != NULL)
-            *newline = '\\0';
+            *newline = '\0';
         IptvChannel channel;
         memset(&channel, 0, sizeof(channel));
         if (hex_decode(fields[0], channel.url, sizeof(channel.url)) &&
@@ -195,7 +195,7 @@ static void load_favourites(void)
             hex_decode(fields[2], channel.group, sizeof(channel.group)) &&
             hex_decode(fields[3], channel.logo, sizeof(channel.logo)) &&
             hex_decode(fields[4], channel.id, sizeof(channel.id)) &&
-            channel.url[0] != '\\0' && channel.name[0] != '\\0' &&
+            channel.url[0] != '\0' && channel.name[0] != '\0' &&
             find_favourite(&channel) < 0)
             favourite_channels[favourite_count++] = channel;
     }
