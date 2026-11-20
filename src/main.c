@@ -324,7 +324,7 @@ static void draw_section(Screen screen, uint32_t width)
             } else {
                 for (uint32_t i = 0; i < browser_count && i < 8; i++) {
                     char row[BROWSER_NAME_BYTES + 24];
-                    (void)snprintf(row, sizeof(row), "%c %s",
+                    (void)snprintf(row, sizeof(row), "%c %.240s",
                         i == browser_selected ? '>' : ' ', browser_entries[i].name);
                     xsdk_text_draw(78, (int32_t)(224 + i * 44), 1,
                         i == browser_selected ? 0xFFFFFFFF : 0xFFB5BDCC, row);
