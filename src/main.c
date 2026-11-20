@@ -55,8 +55,8 @@ static const char *const menu_items[MENU_ITEMS] = {
 };
 
 static const char *const menu_descriptions[MENU_ITEMS] = {
-    "Acesse o catalogo publico de canais.",
-    "Adicione sua propria lista M3U ou M3U8.",
+    "Area de canais ao vivo em desenvolvimento.",
+    "Navegue e abra arquivos M3U ou M3U8 no USB.",
     "Seus canais favoritos ficarao aqui.",
     "Configure rede, listas e preferencias."
 };
@@ -207,25 +207,36 @@ static void select_browser_entry(void)
     xsdk_log_write("xbox-iptv: lista selecionada: %s", path);
 }
 
+static void draw_home_card(int32_t x, int32_t y, const char *title, const char *subtitle, bool active)
+{
+    const uint32_t color = active ? 0xFFE50914 : 0xFF465064;
+    const uint32_t text_color = active ? 0xFFFFFFFF : 0xFFB5BDCC;
+    xsdk_text_draw(x, y, 1, color, "+------------------------+");
+    xsdk_text_draw(x, y + 24, 1, color, "|                        |");
+    xsdk_text_draw(x + 10, y + 24, 1, text_color, title);
+    xsdk_text_draw(x, y + 48, 1, color, "|                        |");
+    xsdk_text_draw(x + 10, y + 48, 1, 0xFF8B95AA, subtitle);
+    xsdk_text_draw(x, y + 72, 1, color, "+------------------------+");
+}
+
 static void draw_home(uint32_t width, uint32_t height, uint32_t selected)
 {
     (void)height;
-    xsdk_text_draw(64, 42, 3, 0xFFFFFFFF, "XBOX IPTV");
-    xsdk_text_draw(66, 112, 1, 0xFF8B95AA, "SEU ENTRETENIMENTO EM UM LUGAR");
-    xsdk_text_draw(66, 174, 2, 0xFFFFFFFF, "INICIO");
+    xsdk_text_draw(66, 34, 3, 0xFFE50914, "XBOX IPTV");
+    xsdk_text_draw(760, 48, 1, 0xFFB5BDCC, "INICIO   MINHAS LISTAS   FAVORITOS   AJUSTES");
+    xsdk_text_draw(66, 132, 1, 0xFF8B95AA, "SUA CENTRAL DE ENTRETENIMENTO");
+    xsdk_text_draw(66, 184, 4, 0xFFFFFFFF, "TV DO SEU JEITO.");
+    xsdk_text_draw(66, 274, 2, 0xFFB5BDCC, "Suas listas M3U e canais organizados em um so lugar.");
+    xsdk_text_draw(66, 330, 1, 0xFFE50914, "DESTAQUES");
+    xsdk_text_draw(66, 374, 1, 0xFF8B95AA, "ESCOLHA UMA SECAO PARA CONTINUAR");
 
-    for (uint32_t i = 0; i < MENU_ITEMS; i++) {
-        const uint32_t y = 236 + i * 76;
-        const bool active = i == selected;
-        const uint32_t color = active ? 0xFFFFFFFF : 0xFF8B95AA;
-        if (active)
-            xsdk_text_draw(66, (int32_t)y, 2, 0xFF48C7FA, ">");
-        xsdk_text_draw(104, (int32_t)y, 2, color, menu_items[i]);
-    }
+    draw_home_card(66, 430, "TV AO VIVO", "CATALOGO", selected == 0);
+    draw_home_card(356, 430, "MINHAS LISTAS", "M3U / M3U8", selected == 1);
+    draw_home_card(646, 430, "FAVORITOS", "SEUS CANAIS", selected == 2);
+    draw_home_card(936, 430, "CONFIGURACOES", "REDE E SISTEMA", selected == 3);
 
-    xsdk_text_draw((int32_t)(width / 2), 240, 2, 0xFFFFFFFF, menu_items[selected]);
-    xsdk_text_draw((int32_t)(width / 2), 292, 1, 0xFFB5BDCC, menu_descriptions[selected]);
     xsdk_text_draw(66, 632, 1, 0xFF68748B, "D-PAD: NAVEGAR    A: ABRIR    BACK: SAIR");
+    (void)width;
 }
 
 static void draw_section(Screen screen, uint32_t width)
