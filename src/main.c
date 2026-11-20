@@ -41,7 +41,7 @@ static BrowserEntry browser_entries[BROWSER_MAX_ENTRIES];
 static uint32_t browser_count;
 static uint32_t browser_selected;
 static bool browser_truncated;
-static char browser_path[BROWSER_PATH_BYTES] = "usb:\\\\";
+static char browser_path[BROWSER_PATH_BYTES] = "usb:\\";
 static char selected_playlist_path[BROWSER_PATH_BYTES] = "";
 static char network_link_status[48] = "NAO VERIFICADO";
 static char network_ip_status[48] = "NAO VERIFICADO";
