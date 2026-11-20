@@ -39,6 +39,8 @@ static IptvChannel favourite_channels[IPTV_MAX_CHANNELS];
 static uint32_t favourite_count;
 static uint32_t favourite_selected;
 
+static void save_favourites(void);
+
 static int find_favourite(const IptvChannel *channel)
 {
     for (uint32_t i = 0; i < favourite_count; i++) {
@@ -59,6 +61,7 @@ static void toggle_favourite(const IptvChannel *channel)
             favourite_selected = 0;
         else if (favourite_selected >= favourite_count)
             favourite_selected = favourite_count - 1;
+        save_favourites();
         xsdk_log_write("xbox-iptv: favorito removido: %s", channel->name);
         return;
     }
@@ -68,6 +71,7 @@ static void toggle_favourite(const IptvChannel *channel)
         return;
     }
     favourite_channels[favourite_count++] = *channel;
+    save_favourites();
     xsdk_log_write("xbox-iptv: favorito adicionado: %s", channel->name);
 }
 
@@ -80,6 +84,125 @@ static bool browser_truncated;
 static char browser_path[BROWSER_PATH_BYTES] = "usb:\\";
 static bool browser_selecting_drive = true;
 static char selected_playlist_path[BROWSER_PATH_BYTES] = "";
+static char favourites_storage_root[BROWSER_PATH_BYTES] = "";
+
+static void hex_encode(const char *source, char *destination, size_t capacity)
+{
+    static const char digits[] = "0123456789ABCDEF";
+    size_t out = 0;
+    if (capacity == 0)
+        return;
+    for (size_t i = 0; source[i] != '\\0' && out + 2 < capacity; i++) {
+        const unsigned char value = (unsigned char)source[i];
+        destination[out++] = digits[value >> 4];
+        destination[out++] = digits[value & 15];
+    }
+    destination[out] = '\\0';
+}
+
+static bool hex_decode(const char *source, char *destination, size_t capacity)
+{
+    size_t out = 0;
+    if (capacity == 0)
+        return false;
+    while (source[0] != '\\0' && source[1] != '\\0') {
+        unsigned int value = 0;
+        if (sscanf(source, "%2x", &value) != 1 || out + 1 >= capacity)
+            return false;
+        destination[out++] = (char)value;
+        source += 2;
+    }
+    if (*source != '\\0')
+        return false;
+    destination[out] = '\\0';
+    return true;
+}
+
+static void save_favourites(void)
+{
+    if (favourites_storage_root[0] == '\\0')
+        return;
+    char path[BROWSER_PATH_BYTES];
+    const int length = snprintf(path, sizeof(path), "%sxbox-iptv-fav.dat", favourites_storage_root);
+    if (length < 0 || (size_t)length >= sizeof(path))
+        return;
+
+    FILE *file = fopen(path, "wb");
+    if (file == NULL) {
+        xsdk_log_write("xbox-iptv: nao foi possivel salvar favoritos em %s", path);
+        return;
+    }
+    char url[IPTV_CHANNEL_URL_BYTES * 2 + 1];
+    char name[IPTV_CHANNEL_NAME_BYTES * 2 + 1];
+    char group[IPTV_CHANNEL_GROUP_BYTES * 2 + 1];
+    char logo[IPTV_CHANNEL_LOGO_BYTES * 2 + 1];
+    char id[IPTV_CHANNEL_ID_BYTES * 2 + 1];
+    bool ok = true;
+    for (uint32_t i = 0; i < favourite_count; i++) {
+        const IptvChannel *channel = &favourite_channels[i];
+        hex_encode(channel->url, url, sizeof(url));
+        hex_encode(channel->name, name, sizeof(name));
+        hex_encode(channel->group, group, sizeof(group));
+        hex_encode(channel->logo, logo, sizeof(logo));
+        hex_encode(channel->id, id, sizeof(id));
+        if (fprintf(file, "%s|%s|%s|%s|%s\\n", url, name, group, logo, id) < 0) {
+            ok = false;
+            break;
+        }
+    }
+    if (fclose(file) != 0)
+        ok = false;
+    if (!ok)
+        xsdk_log_write("xbox-iptv: erro ao gravar favoritos");
+}
+
+static void load_favourites(void)
+{
+    if (favourites_storage_root[0] == '\\0')
+        return;
+    char path[BROWSER_PATH_BYTES];
+    const int length = snprintf(path, sizeof(path), "%sxbox-iptv-fav.dat", favourites_storage_root);
+    if (length < 0 || (size_t)length >= sizeof(path))
+        return;
+    FILE *file = fopen(path, "rb");
+    if (file == NULL)
+        return;
+
+    favourite_count = 0;
+    favourite_selected = 0;
+    char line[2048];
+    while (favourite_count < IPTV_MAX_CHANNELS && fgets(line, sizeof(line), file) != NULL) {
+        char *fields[5];
+        fields[0] = line;
+        for (size_t i = 1; i < 5; i++) {
+            char *separator = strchr(fields[i - 1], '|');
+            if (separator == NULL) {
+                fields[0] = NULL;
+                break;
+            }
+            *separator = '\\0';
+            fields[i] = separator + 1;
+        }
+        if (fields[0] == NULL)
+            continue;
+        char *newline = strpbrk(fields[4], "\\r\\n");
+        if (newline != NULL)
+            *newline = '\\0';
+        IptvChannel channel;
+        memset(&channel, 0, sizeof(channel));
+        if (hex_decode(fields[0], channel.url, sizeof(channel.url)) &&
+            hex_decode(fields[1], channel.name, sizeof(channel.name)) &&
+            hex_decode(fields[2], channel.group, sizeof(channel.group)) &&
+            hex_decode(fields[3], channel.logo, sizeof(channel.logo)) &&
+            hex_decode(fields[4], channel.id, sizeof(channel.id)) &&
+            channel.url[0] != '\\0' && channel.name[0] != '\\0' &&
+            find_favourite(&channel) < 0)
+            favourite_channels[favourite_count++] = channel;
+    }
+    (void)fclose(file);
+    xsdk_log_write("xbox-iptv: %u favoritos carregados do USB",
+        (unsigned)favourite_count);
+}
 
 typedef struct { const char *label; const char *path; } StorageRoot;
 static const StorageRoot storage_roots[] = {
@@ -251,6 +374,8 @@ static void select_browser_entry(void)
     if (browser_selecting_drive) {
         (void)snprintf(browser_path, sizeof(browser_path), "%s", entry->path);
         browser_selecting_drive = false;
+        (void)snprintf(favourites_storage_root, sizeof(favourites_storage_root), "%s", entry->path);
+        load_favourites();
         scan_browser_directory();
         return;
     }
