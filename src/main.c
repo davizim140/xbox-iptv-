@@ -78,7 +78,19 @@ static uint32_t browser_count;
 static uint32_t browser_selected;
 static bool browser_truncated;
 static char browser_path[BROWSER_PATH_BYTES] = "usb:\\";
+static bool browser_selecting_drive = true;
 static char selected_playlist_path[BROWSER_PATH_BYTES] = "";
+
+typedef struct { const char *label; const char *path; } StorageRoot;
+static const StorageRoot storage_roots[] = {
+    { "HDD INTERNO", "hdd:\\" },
+    { "USB (PORTA PADRAO)", "usb:\\" },
+    { "USB 0", "usb0:\\" },
+    { "USB 1", "usb1:\\" },
+    { "USB 2", "usb2:\\" },
+    { "MEMORY UNIT", "mu:\\" },
+    { "DVD", "dvd:\\" }
+};
 static char network_link_status[48] = "NAO VERIFICADO";
 static char network_ip_status[48] = "NAO VERIFICADO";
 
@@ -119,6 +131,28 @@ static bool is_m3u_file(const char *name)
     const char *extension = strrchr(name, '.');
     return extension != NULL &&
         (strcasecmp(extension, ".m3u") == 0 || strcasecmp(extension, ".m3u8") == 0);
+}
+
+static void scan_browser_drives(void)
+{
+    browser_count = 0;
+    browser_selected = 0;
+    browser_truncated = false;
+
+    for (size_t i = 0; i < sizeof(storage_roots) / sizeof(storage_roots[0]); i++) {
+        DIR *directory = opendir(storage_roots[i].path);
+        if (directory == NULL)
+            continue;
+        (void)closedir(directory);
+        if (browser_count >= BROWSER_MAX_ENTRIES)
+            break;
+        (void)snprintf(browser_entries[browser_count].name,
+            sizeof(browser_entries[browser_count].name), "%s", storage_roots[i].path);
+        browser_entries[browser_count].directory = true;
+        browser_count++;
+    }
+    xsdk_log_write("xbox-iptv: unidades de armazenamento encontradas: %u",
+        (unsigned)browser_count);
 }
 
 static void scan_browser_directory(void)
@@ -214,6 +248,12 @@ static void select_browser_entry(void)
         return;
 
     const BrowserEntry *entry = &browser_entries[browser_selected];
+    if (browser_selecting_drive) {
+        (void)snprintf(browser_path, sizeof(browser_path), "%s", entry->name);
+        browser_selecting_drive = false;
+        scan_browser_directory();
+        return;
+    }
     if (entry->directory) {
         (void)enter_browser_directory(entry->name);
         return;
@@ -275,6 +315,21 @@ static void draw_section(Screen screen, uint32_t width)
         xsdk_text_draw(66, 270, 1, 0xFFB5BDCC, "Fonte inicial: iptv-org (lista publica M3U)");
         xsdk_text_draw(66, 306, 1, 0xFF8B95AA, "A conexao e a reproducao serao ativadas nas proximas etapas.");
     } else if (screen == SCREEN_PLAYLISTS) {
+        if (browser_selecting_drive) {
+            xsdk_text_draw(66, 178, 1, 0xFFB5BDCC, "ESCOLHA O DISPOSITIVO:");
+            if (browser_count == 0) {
+                xsdk_text_draw(66, 250, 2, 0xFFFFC66D, "NENHUMA UNIDADE DISPONIVEL");
+                xsdk_text_draw(66, 294, 1, 0xFFB5BDCC, "Conecte um dispositivo e pressione X para atualizar.");
+            } else {
+                for (uint32_t i = 0; i < browser_count && i < 8; i++) {
+                    char row[BROWSER_NAME_BYTES + 24];
+                    (void)snprintf(row, sizeof(row), "%c %s",
+                        i == browser_selected ? '>' : ' ', browser_entries[i].name);
+                    xsdk_text_draw(78, (int32_t)(224 + i * 44), 1,
+                        i == browser_selected ? 0xFFFFFFFF : 0xFFB5BDCC, row);
+                }
+            }
+        } else {
         xsdk_text_draw(66, 178, 1, 0xFFB5BDCC, "PASTA:");
         xsdk_text_draw(180, 178, 1, 0xFF48C7FA, browser_path);
         if (browser_count == 0) {
@@ -293,6 +348,7 @@ static void draw_section(Screen screen, uint32_t width)
         }
         if (browser_truncated)
             xsdk_text_draw(66, 584, 1, 0xFFFFC66D, "LISTA LIMITADA A 96 ITENS NESTA PASTA");
+        }
     } else if (screen == SCREEN_CHANNELS) {
         xsdk_text_draw(66, 178, 1, 0xFF48C7FA, selected_playlist_path);
         if (playlist_count <= 0) {
@@ -339,7 +395,7 @@ static void draw_section(Screen screen, uint32_t width)
     }
 
     const char *footer =
-        screen == SCREEN_PLAYLISTS ? "D-PAD: NAVEGAR    A: ABRIR/SELECIONAR    B: VOLTAR" :
+        screen == SCREEN_PLAYLISTS ? (browser_selecting_drive ? "D-PAD: ESCOLHER UNIDADE    A: ABRIR    X: ATUALIZAR    B: VOLTAR" : "D-PAD: NAVEGAR    A: ABRIR/SELECIONAR    B: UNIDADES") :
         screen == SCREEN_CHANNELS ? "D-PAD: NAVEGAR    Y: FAVORITAR    X: RECARREGAR    B: PASTAS" :
         screen == SCREEN_FAVOURITES ? "D-PAD: NAVEGAR    Y: REMOVER    B: VOLTAR" :
         screen == SCREEN_SETTINGS ? "X: ATUALIZAR REDE    B: VOLTAR" : "B: VOLTAR";
@@ -379,8 +435,8 @@ static void run(uint32_t width, uint32_t height)
                 if ((pressed & INPUT_GAMEPAD_A) != 0) {
                     screen = (Screen)(selected + 1);
                     if (screen == SCREEN_PLAYLISTS) {
-                        (void)snprintf(browser_path, sizeof(browser_path), "usb:\\");
-                        scan_browser_directory();
+                        browser_selecting_drive = true;
+                        scan_browser_drives();
                     } else if (screen == SCREEN_SETTINGS) {
                         refresh_network_status();
                     }
@@ -388,8 +444,11 @@ static void run(uint32_t width, uint32_t height)
             } else if ((pressed & INPUT_GAMEPAD_B) != 0) {
                 if (screen == SCREEN_CHANNELS) {
                     screen = SCREEN_PLAYLISTS;
-                } else if (screen == SCREEN_PLAYLISTS && !is_drive_root(browser_path)) {
+                } else if (screen == SCREEN_PLAYLISTS && !browser_selecting_drive && !is_drive_root(browser_path)) {
                     (void)enter_browser_directory("..");
+                } else if (screen == SCREEN_PLAYLISTS && !browser_selecting_drive) {
+                    browser_selecting_drive = true;
+                    scan_browser_drives();
                 } else {
                     screen = SCREEN_HOME;
                 }
