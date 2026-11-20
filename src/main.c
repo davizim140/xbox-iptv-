@@ -5,6 +5,7 @@
 #include "xsdk/gpu.h"
 #include "xsdk/kernel.h"
 #include "xsdk/log.h"
+#include "xsdk/net.h"
 #include "xsdk/present.h"
 #include "xsdk/splash.h"
 #include "xsdk/text.h"
@@ -30,6 +31,8 @@ typedef enum {
 static IptvChannel playlist_channels[IPTV_MAX_CHANNELS];
 static int playlist_count = -1;
 static uint32_t playlist_selected;
+static char network_link_status[48] = "NAO VERIFICADO";
+static char network_ip_status[48] = "NAO VERIFICADO";
 
 static const char *const menu_items[MENU_ITEMS] = {
     "TV AO VIVO",
@@ -46,6 +49,31 @@ static const char *const menu_descriptions[MENU_ITEMS] = {
 };
 
  
+static void refresh_network_status(void)
+{
+    uint32_t link = 0;
+    const int link_error = xsdk_net_link(&link);
+    if (link_error != 0) {
+        (void)snprintf(network_link_status, sizeof(network_link_status), "ERRO DE REDE (%d)", link_error);
+    } else if ((link & XSDK_NET_LINK_ACTIVE) != 0) {
+        (void)snprintf(network_link_status, sizeof(network_link_status), "CABO CONECTADO");
+    } else {
+        (void)snprintf(network_link_status, sizeof(network_link_status), "SEM LINK ETHERNET");
+    }
+
+    struct in_addr address = { 0 };
+    const int address_error = xsdk_net_address(&address);
+    if (address_error == 0) {
+        const unsigned char *octets = (const unsigned char *)&address.s_addr;
+        (void)snprintf(network_ip_status, sizeof(network_ip_status), "%u.%u.%u.%u",
+            (unsigned)octets[0], (unsigned)octets[1],
+            (unsigned)octets[2], (unsigned)octets[3]);
+    } else {
+        (void)snprintf(network_ip_status, sizeof(network_ip_status), "IP INDISPONIVEL (%d)", address_error);
+    }
+    xsdk_log_write("xbox-iptv: rede: %s; IP: %s", network_link_status, network_ip_status);
+}
+
 static void load_usb_playlist(void)
 {
     FILE *file = fopen("usb:\\playlist.m3u", "rb");
@@ -121,12 +149,17 @@ static void draw_section(Screen screen, uint32_t width)
         xsdk_text_draw(66, 220, 2, 0xFFFFFFFF, "NENHUM FAVORITO");
         xsdk_text_draw(66, 270, 1, 0xFF8B95AA, "Seus canais salvos aparecerao nesta tela.");
     } else {
-        xsdk_text_draw(66, 220, 2, 0xFFFFFFFF, "PREFERENCIAS");
-        xsdk_text_draw(66, 270, 1, 0xFF8B95AA, "Configuracoes de rede e player serao adicionadas.");
+        xsdk_text_draw(66, 220, 2, 0xFFFFFFFF, "STATUS DA REDE");
+        xsdk_text_draw(66, 274, 1, 0xFFB5BDCC, "CONEXAO ETHERNET:");
+        xsdk_text_draw(350, 274, 1, 0xFF48C7FA, network_link_status);
+        xsdk_text_draw(66, 318, 1, 0xFFB5BDCC, "ENDERECO IPv4:");
+        xsdk_text_draw(350, 318, 1, 0xFF48C7FA, network_ip_status);
+        xsdk_text_draw(66, 390, 1, 0xFF8B95AA, "Este teste verifica o link e o IP atribuido pelo roteador.");
     }
 
     xsdk_text_draw(66, 632, 1, 0xFF68748B,
-        screen == SCREEN_PLAYLISTS ? "D-PAD: NAVEGAR    X: RECARREGAR USB    B: VOLTAR" : "B: VOLTAR");
+        screen == SCREEN_PLAYLISTS ? "D-PAD: NAVEGAR    X: RECARREGAR USB    B: VOLTAR" :
+        screen == SCREEN_SETTINGS ? "X: ATUALIZAR REDE    B: VOLTAR" : "B: VOLTAR");
     (void)width;
 }
 
@@ -163,9 +196,14 @@ static void run(uint32_t width, uint32_t height)
                     screen = (Screen)(selected + 1);
                     if (screen == SCREEN_PLAYLISTS)
                         load_usb_playlist();
+                    else if (screen == SCREEN_SETTINGS)
+                        refresh_network_status();
                 }
             } else if ((pressed & INPUT_GAMEPAD_B) != 0) {
                 screen = SCREEN_HOME;
+            } else if (screen == SCREEN_SETTINGS) {
+                if ((pressed & INPUT_GAMEPAD_X) != 0)
+                    refresh_network_status();
             } else if (screen == SCREEN_PLAYLISTS) {
                 if ((pressed & INPUT_GAMEPAD_DPAD_UP) != 0 && playlist_selected > 0)
                     playlist_selected--;
