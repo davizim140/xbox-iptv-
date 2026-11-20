@@ -1,6 +1,7 @@
 #ifndef IPTV_HLS_H
 #define IPTV_HLS_H
 #include <stdbool.h>
+#include <stdbool.h>
 #include <stddef.h>
 #define IPTV_HLS_MAX_ITEMS 64
 #define IPTV_HLS_URI_BYTES 512
