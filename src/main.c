@@ -408,7 +408,7 @@ static bool download_live_catalogue(void)
         (void)snprintf(root, sizeof(root), "%s", storage_roots[i].path);
         break;
     }
-    if (root[0] == '\\0') {
+    if (root[0] == '\0') {
         (void)snprintf(live_catalogue_status, sizeof(live_catalogue_status),
             "CONECTE UM USB PARA SALVAR A LISTA");
         return false;
