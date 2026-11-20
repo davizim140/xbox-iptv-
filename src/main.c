@@ -173,6 +173,7 @@ static void load_playlist_file(const char *path)
     if (file == NULL) {
         playlist_count = -1;
         playlist_selected = 0;
+        selected_playlist_path[0] = '\0';
         xsdk_log_write("xbox-iptv: falha ao abrir lista: %s", path);
         return;
     }
@@ -330,14 +331,20 @@ static void run(uint32_t width, uint32_t height)
                 if ((pressed & INPUT_GAMEPAD_A) != 0) {
                     screen = (Screen)(selected + 1);
                     if (screen == SCREEN_PLAYLISTS) {
-                        (void)snprintf(browser_path, sizeof(browser_path), "usb:\\\\");
+                        (void)snprintf(browser_path, sizeof(browser_path), "usb:\\");
                         scan_browser_directory();
                     } else if (screen == SCREEN_SETTINGS) {
                         refresh_network_status();
                     }
                 }
             } else if ((pressed & INPUT_GAMEPAD_B) != 0) {
-                screen = screen == SCREEN_CHANNELS ? SCREEN_PLAYLISTS : SCREEN_HOME;
+                if (screen == SCREEN_CHANNELS) {
+                    screen = SCREEN_PLAYLISTS;
+                } else if (screen == SCREEN_PLAYLISTS && !is_drive_root(browser_path)) {
+                    (void)enter_browser_directory("..");
+                } else {
+                    screen = SCREEN_HOME;
+                }
             } else if (screen == SCREEN_SETTINGS) {
                 if ((pressed & INPUT_GAMEPAD_X) != 0)
                     refresh_network_status();
