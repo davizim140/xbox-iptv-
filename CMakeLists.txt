@@ -5,6 +5,7 @@ add_executable(xbox-iptv
     src/main.c
     src/m3u.c
     src/http.c
+    src/hls.c
 )
 set_target_properties(xbox-iptv PROPERTIES C_STANDARD 17 C_EXTENSIONS ON)
 target_compile_options(xbox-iptv PRIVATE -Wall -Wextra -Werror)
