@@ -48,6 +48,13 @@ jobs:
           TOOLCHAIN="${{ github.workspace }}/.xsdk-gcc/bin/powerpc-xsdk-elf-"
           build/libxsdk.a build/host/libxsc.so
 
+      - name: Fetch pinned curl-xenon and mbedtls-xenon
+        run: |
+          git clone https://github.com/xenosworks/curl-xenon.git "$RUNNER_TEMP/curl-xenon"
+          git -C "$RUNNER_TEMP/curl-xenon" checkout --detach a6b70bd06820e1c625f47fe0e592e08c5daaa6b4
+          git clone https://github.com/xenosworks/mbedtls-xenon.git "$RUNNER_TEMP/mbedtls-xenon"
+          git -C "$RUNNER_TEMP/mbedtls-xenon" checkout --detach 591b04adbec4bc5582649601f4407506a610162b
+
       - name: Run native M3U parser tests
         run: |
           cc -std=c17 -Wall -Wextra -Werror -Isrc src/m3u.c tests/test_m3u.c -o /tmp/test_m3u
@@ -64,6 +71,8 @@ jobs:
           cmake -S . -B build -G Ninja
           -DCMAKE_TOOLCHAIN_FILE="$RUNNER_TEMP/xsdk/cmake/xsdk.cmake"
           -DXSDK_TOOLCHAIN="${{ github.workspace }}/.xsdk-gcc"
+          -DMBEDTLS_XENON_DIR="$RUNNER_TEMP/mbedtls-xenon"
+          -DCURL_XENON_DIR="$RUNNER_TEMP/curl-xenon"
           -DCMAKE_BUILD_TYPE=RelWithDebInfo
 
       - name: Build Xbox IPTV XEX
@@ -76,6 +85,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: xbox-iptv-xex
-          path: build/xbox-iptv.xex
+          path: |
+            build/xbox-iptv.xex
+            build/cacert.pem
           if-no-files-found: error
           retention-days: 14
