@@ -22,6 +22,12 @@ static bool resolve_uri(const char *base, const char *uri, char *out, size_t cap
     *slash = '\0';
     return snprintf(out, cap, "%s%s/%s", origin, parsed.path, uri) < (int)cap;
 }
+static bool append_text(char *out, size_t cap, const char *a, const char *b)
+{
+ size_t n=strlen(out), m=(size_t)(b-a);
+ if(n+m>=cap) return false;
+ memcpy(out+n,a,m); out[n+m]=0; return true;
+}
 static void trim(char *s)
 {
     size_t n = strlen(s);
@@ -51,7 +57,7 @@ bool iptv_hls_parse(const char *text, const char *manifest_url, IptvHlsPlaylist 
             next_segment = true;
             pending_duration = strtod(line + 8, NULL);
             const char *comma = strchr(line, ',');
-            if (comma) snprintf(pending_title, sizeof(pending_title), "%s", comma + 1);
+            if (comma) { size_t n=strlen(comma+1); if(n>=sizeof(pending_title)) n=sizeof(pending_title)-1; memcpy(pending_title,comma+1,n); pending_title[n]=0; }
             else pending_title[0] = 0;
         } else if (strncmp(line, "#EXT-X-TARGETDURATION:", 22) == 0) {
             out->target_duration = (unsigned)strtoul(line + 22, NULL, 10);
@@ -69,7 +75,7 @@ bool iptv_hls_parse(const char *text, const char *manifest_url, IptvHlsPlaylist 
                 item->bandwidth = pending_bandwidth; item->width = pending_width; item->height = pending_height;
             } else {
                 item->duration = pending_duration;
-                snprintf(item->title, sizeof(item->title), "%s", pending_title);
+                memcpy(item->title, pending_title, sizeof(item->title)); item->title[sizeof(item->title)-1]=0;
             }
             out->count++;
             next_variant = next_segment = false;
