@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include "xsdk/gpu.h"
 #include "xsdk/kernel.h"
@@ -7,6 +8,7 @@
 #include "xsdk/present.h"
 #include "xsdk/splash.h"
 #include "xsdk/text.h"
+#include "m3u.h"
 
 enum {
     DISPLAY_BUFFERS = 2,
@@ -25,6 +27,10 @@ typedef enum {
     SCREEN_SETTINGS
 } Screen;
 
+static IptvChannel playlist_channels[IPTV_MAX_CHANNELS];
+static int playlist_count = -1;
+static uint32_t playlist_selected;
+
 static const char *const menu_items[MENU_ITEMS] = {
     "TV AO VIVO",
     "MINHAS LISTAS M3U",
@@ -38,6 +44,25 @@ static const char *const menu_descriptions[MENU_ITEMS] = {
     "Seus canais favoritos ficarao aqui.",
     "Configure rede, listas e preferencias."
 };
+
+ 
+static void load_usb_playlist(void)
+{
+    FILE *file = fopen("usb:\\playlist.m3u", "rb");
+    if (file == NULL) {
+        playlist_count = -1;
+        playlist_selected = 0;
+        xsdk_log_write("xbox-iptv: nao foi possivel abrir usb:\\playlist.m3u");
+        return;
+    }
+
+    playlist_count = iptv_playlist_read(file, playlist_channels, IPTV_MAX_CHANNELS);
+    fclose(file);
+    if (playlist_count < 0)
+        playlist_count = 0;
+    playlist_selected = 0;
+    xsdk_log_write("xbox-iptv: %d canais lidos da lista USB", playlist_count);
+}
 
 static void draw_home(uint32_t width, uint32_t height, uint32_t selected)
 {
@@ -73,9 +98,25 @@ static void draw_section(Screen screen, uint32_t width)
         xsdk_text_draw(66, 270, 1, 0xFFB5BDCC, "Fonte inicial: iptv-org (lista publica M3U)");
         xsdk_text_draw(66, 306, 1, 0xFF8B95AA, "A conexao e a reproducao serao ativadas nas proximas etapas.");
     } else if (screen == SCREEN_PLAYLISTS) {
-        xsdk_text_draw(66, 220, 2, 0xFFFFFFFF, "IMPORTAR M3U / M3U8");
-        xsdk_text_draw(66, 270, 1, 0xFFB5BDCC, "O analisador de metadados M3U ja faz parte do projeto.");
-        xsdk_text_draw(66, 306, 1, 0xFF8B95AA, "Leitura de arquivo e importacao por URL ainda em desenvolvimento.");
+        xsdk_text_draw(66, 178, 1, 0xFFB5BDCC, "Arquivo esperado: usb:\\playlist.m3u");
+        if (playlist_count < 0) {
+            xsdk_text_draw(66, 250, 2, 0xFFFFC66D, "LISTA NAO ENCONTRADA");
+            xsdk_text_draw(66, 294, 1, 0xFFB5BDCC, "Copie playlist.m3u para a raiz do pendrive.");
+        } else if (playlist_count == 0) {
+            xsdk_text_draw(66, 250, 2, 0xFFFFC66D, "NENHUM CANAL VALIDO");
+            xsdk_text_draw(66, 294, 1, 0xFFB5BDCC, "Confira se cada #EXTINF tem uma URL na linha seguinte.");
+        } else {
+            char count_text[64];
+            (void)snprintf(count_text, sizeof(count_text), "%d CANAIS CARREGADOS", playlist_count);
+            xsdk_text_draw(66, 208, 1, 0xFF48C7FA, count_text);
+            const uint32_t first = playlist_selected >= 7 ? playlist_selected - 6 : 0;
+            for (uint32_t i = first; i < (uint32_t)playlist_count && i < first + 7; i++) {
+                char row[IPTV_CHANNEL_NAME_BYTES + 8];
+                (void)snprintf(row, sizeof(row), "%c %s", i == playlist_selected ? '>' : ' ', playlist_channels[i].name);
+                xsdk_text_draw(78, (int32_t)(250 + (i - first) * 46),
+                    1, i == playlist_selected ? 0xFFFFFFFF : 0xFFB5BDCC, row);
+            }
+        }
     } else if (screen == SCREEN_FAVOURITES) {
         xsdk_text_draw(66, 220, 2, 0xFFFFFFFF, "NENHUM FAVORITO");
         xsdk_text_draw(66, 270, 1, 0xFF8B95AA, "Seus canais salvos aparecerao nesta tela.");
@@ -84,7 +125,8 @@ static void draw_section(Screen screen, uint32_t width)
         xsdk_text_draw(66, 270, 1, 0xFF8B95AA, "Configuracoes de rede e player serao adicionadas.");
     }
 
-    xsdk_text_draw(66, 632, 1, 0xFF68748B, "B: VOLTAR");
+    xsdk_text_draw(66, 632, 1, 0xFF68748B,
+        screen == SCREEN_PLAYLISTS ? "D-PAD: NAVEGAR    X: RECARREGAR USB    B: VOLTAR" : "B: VOLTAR");
     (void)width;
 }
 
@@ -117,10 +159,21 @@ static void run(uint32_t width, uint32_t height)
                     selected = selected == 0 ? MENU_ITEMS - 1 : selected - 1;
                 if ((pressed & INPUT_GAMEPAD_DPAD_DOWN) != 0)
                     selected = (selected + 1) % MENU_ITEMS;
-                if ((pressed & INPUT_GAMEPAD_A) != 0)
+                if ((pressed & INPUT_GAMEPAD_A) != 0) {
                     screen = (Screen)(selected + 1);
+                    if (screen == SCREEN_PLAYLISTS)
+                        load_usb_playlist();
+                }
             } else if ((pressed & INPUT_GAMEPAD_B) != 0) {
                 screen = SCREEN_HOME;
+            } else if (screen == SCREEN_PLAYLISTS) {
+                if ((pressed & INPUT_GAMEPAD_DPAD_UP) != 0 && playlist_selected > 0)
+                    playlist_selected--;
+                if ((pressed & INPUT_GAMEPAD_DPAD_DOWN) != 0 && playlist_count > 0 &&
+                    playlist_selected + 1 < (uint32_t)playlist_count)
+                    playlist_selected++;
+                if ((pressed & INPUT_GAMEPAD_X) != 0)
+                    load_usb_playlist();
             }
         }
 
