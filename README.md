@@ -12,12 +12,14 @@ Homebrew IPTV player for Xbox 360 RGH/JTAG, built with [XSDK](https://github.com
 
 ## Current implementation status
 
-**Milestone 0 — buildable application shell (in progress):**
+**Milestone 1 — playlist import and network diagnostics (in progress):**
 - XSDK application entry point, 720p presentation loop and controller navigation.
 - M3U `#EXTINF` metadata parser with native host tests.
+- USB playlist import from `usb:\\playlist.m3u`, with channel list navigation and reload.
+- Network status screen using XSDK link and IPv4 APIs; X refreshes link/IP status.
 - GitHub Actions workflow that builds XSDK, compiles the XEX and uploads it as an artifact.
 
-The first build is an interface/parser foundation, **not yet a live TV player**. Network playlist retrieval, media demuxing/decoding and playback will be implemented and tested as separate milestones. No working stream or codec support is claimed until verified.
+The current build is an interface, USB playlist import and network-diagnostics foundation, **not yet a live TV player**. HTTP playlist retrieval, media demuxing/decoding and playback will be implemented and tested as separate milestones. No working stream or codec support is claimed until verified.
 
 ## Build
 
