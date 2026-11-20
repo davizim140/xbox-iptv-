@@ -16,7 +16,8 @@ Homebrew IPTV player for Xbox 360 RGH/JTAG, built with [XSDK](https://github.com
 - XSDK application entry point, 720p presentation loop and controller navigation.
 - M3U `#EXTINF` metadata parser with native host tests.
 - HTTP URL parser and bounded HTTP/1.1 GET transport over XSDK sockets, with DNS resolution and 10-second socket timeouts; native URL parsing tests. HTTPS URLs are recognized but network fetch rejects TLS until certificate-validated mbedTLS is integrated. Chunked transfer and redirect handling are not yet implemented.
-- HLS master/media manifest parser with variant bandwidth/resolution, segment duration/title, media sequence, target duration, end-list and encryption detection; resolves absolute and relative HTTP(S) segment URIs. Native parser tests pass in CI when the workflow completes. AES-128 decryption and media segment playback are not implemented.
+- HLS master/media manifest parser with variant bandwidth/resolution, segment duration/title, media sequence, target duration, end-list and encryption detection; resolves absolute and relative HTTP(S) segment URIs. AES-128 decryption and media segment playback are not implemented.
+- XMLTV programme parser extracts channel IDs, start/stop timestamps, titles and descriptions with basic XML entity decoding. It is parser groundwork only; remote EPG download, time-zone conversion, channel matching and on-screen schedule are not yet wired.
 - Automatic external-storage detection: scans USB mount points (`usb:\\`, `usb0:\\`, `usb1:\\`, `usb2:\\`), showing only roots that can be opened.
 - Controller-driven folder browser for detected external devices: navigate folders, list `.m3u` and `.m3u8` files, select one, then browse its channels. Internal HDD and DVD are intentionally excluded.
 - The browser scans up to 96 folders/M3U files per directory; device detection is based on XSDK filesystem mount availability and still requires testing on a physical RGH/JTAG console.
