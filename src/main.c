@@ -87,7 +87,6 @@ static const StorageRoot storage_roots[] = {
     { "USB 0", "usb0:\\" },
     { "USB 1", "usb1:\\" },
     { "USB 2", "usb2:\\" },
-    { "MEMORY UNIT", "mu:\\" }
 };
 static char network_link_status[48] = "NAO VERIFICADO";
 static char network_ip_status[48] = "NAO VERIFICADO";
