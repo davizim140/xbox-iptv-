@@ -170,7 +170,7 @@ static void load_favourites(void)
 
     favourite_count = 0;
     favourite_selected = 0;
-    char line[2048];
+    char line[2112];
     while (favourite_count < IPTV_MAX_CHANNELS && fgets(line, sizeof(line), file) != NULL) {
         char *fields[5];
         fields[0] = line;
